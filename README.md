@@ -14,4 +14,4 @@
 4. 点击查询，查看结果
 
 ## 在线访问
-https://ruili0526355.github.io/peptide-finder/
+https://github.com/ruili0526355/Peptide-position-finder/
