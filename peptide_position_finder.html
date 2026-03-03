@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peptide Position Finder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #2a3a55;
+    --accent: #00d4ff;
+    --accent2: #ff6b6b;
+    --accent3: #7cfc9f;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --highlight: rgba(0, 212, 255, 0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem;
+    background-image: 
+      radial-gradient(ellipse at 10% 20%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 80%, rgba(124, 252, 159, 0.04) 0%, transparent 50%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 0.4rem;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    max-width: 1100px;
+    margin: 0 auto 1.2rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.4rem;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 1.8rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface2);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--highlight);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-zone .icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+  .drop-zone .label { font-size: 0.75rem; color: var(--muted); }
+  .drop-zone .filename { font-size: 0.72rem; color: var(--accent3); margin-top: 0.3rem; font-weight: 600; }
+
+  .full-card {
+    max-width: 1100px;
+    margin: 0 auto 1.2rem;
+  }
+
+  .query-row {
+    display: grid;
+    grid-template-columns: 1fr 140px 120px;
+    gap: 0.8rem;
+    align-items: end;
+  }
+
+  label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.6rem 0.8rem;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  }
+
+  button {
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #0a0e1a;
+    border: none;
+    border-radius: 7px;
+    padding: 0.65rem 1.2rem;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  button:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0, 212, 255, 0.3); }
+  button:active { transform: translateY(0); }
+
+  button.secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+  }
+
+  .results {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.4rem;
+    margin-bottom: 1rem;
+    display: none;
+  }
+
+  .result-card.visible { display: block; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .result-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent3);
+  }
+
+  .tag {
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: var(--accent);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+  }
+
+  .tag.green { background: rgba(124, 252, 159, 0.1); border-color: rgba(124, 252, 159, 0.3); color: var(--accent3); }
+  .tag.red { background: rgba(255, 107, 107, 0.1); border-color: rgba(255, 107, 107, 0.3); color: var(--accent2); }
+
+  .sequence-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 2;
+    word-break: break-all;
+    letter-spacing: 0.05em;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .aa-normal { color: var(--text); }
+  .aa-peptide { color: #ffd166; }
+  .aa-target { 
+    background: var(--accent2); 
+    color: #fff; 
+    border-radius: 3px; 
+    padding: 0 2px;
+    font-weight: 700;
+  }
+  .aa-peptide-target {
+    background: var(--accent);
+    color: #0a0e1a;
+    border-radius: 3px;
+    padding: 0 2px;
+    font-weight: 700;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .stat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+  }
+
+  .stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+  .stat-value { font-size: 1.1rem; font-weight: 600; color: var(--accent); }
+  .stat-value.green { color: var(--accent3); }
+  .stat-value.red { color: var(--accent2); }
+
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.74rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    background: var(--surface2);
+    color: var(--muted);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid rgba(42, 58, 85, 0.5);
+    vertical-align: middle;
+  }
+
+  tr:hover td { background: var(--highlight); }
+
+  .match-row td { color: var(--accent3); }
+
+  .log {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    max-height: 120px;
+    overflow-y: auto;
+    margin-top: 0.8rem;
+  }
+
+  .log-line { margin-bottom: 0.15rem; }
+  .log-line.info { color: var(--accent); }
+  .log-line.ok { color: var(--accent3); }
+  .log-line.warn { color: #ffd166; }
+  .log-line.err { color: var(--accent2); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 0.3rem;
+  }
+
+  .status-bar {
+    max-width: 1100px;
+    margin: 0 auto 1rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .status-dot.loaded { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+
+  .status-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; color: var(--muted); }
+  .status-item.loaded { color: var(--text); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Peptide Position Finder</h1>
+  <p>定位肽段中氨基酸在蛋白全长序列中的精确位置</p>
+</header>
+
+<!-- Status bar -->
+<div class="status-bar" id="statusBar">
+  <div class="status-item" id="fastaStatus"><div class="status-dot" id="fastaDot"></div>FASTA: 未加载</div>
+  <div class="status-item" id="tsvStatus"><div class="status-dot" id="tsvDot"></div>TSV: 未加载</div>
+</div>
+
+<!-- File upload -->
+<div class="grid">
+  <div class="card">
+    <div class="card-title">FASTA 文件</div>
+    <div class="drop-zone" id="fastaZone">
+      <input type="file" id="fastaFile" accept=".fasta,.fa,.faa">
+      <div class="icon">🧬</div>
+      <div class="label">拖拽或点击上传 .fasta 文件</div>
+      <div class="filename" id="fastaName"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Peptide TSV 文件</div>
+    <div class="drop-zone" id="tsvZone">
+      <input type="file" id="tsvFile" accept=".tsv,.txt,.csv">
+      <div class="icon">📊</div>
+      <div class="label">拖拽或点击上传 .tsv 文件</div>
+      <div class="filename" id="tsvName"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Query -->
+<div class="full-card card">
+  <div class="card-title">查询参数</div>
+  <div class="query-row">
+    <div>
+      <label>肽段序列 (Peptide)</label>
+      <input type="text" id="peptideInput" placeholder="例如: SKDYEFMWNPHLGYILTCPSNLGTGLR" style="text-transform:uppercase">
+    </div>
+    <div>
+      <label>目标氨基酸</label>
+      <input type="text" id="aaInput" placeholder="例如: C" maxlength="1" style="text-transform:uppercase; text-align:center">
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <button onclick="runQuery()">🔍 查询</button>
+    </div>
+  </div>
+  <div class="log" id="logArea"></div>
+</div>
+
+<!-- Results -->
+<div class="results">
+
+  <!-- Overview stats -->
+  <div class="result-card" id="statsCard">
+    <div class="result-header">
+      <div class="result-title">查询结果概览</div>
+      <span class="tag green" id="overviewTag"></span>
+    </div>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <!-- Protein sequence visualization -->
+  <div class="result-card" id="seqCard">
+    <div class="result-header">
+      <div class="result-title">蛋白全长序列可视化</div>
+      <div style="display:flex;gap:0.5rem;font-size:0.68rem;color:var(--muted)">
+        <span>■ <span style="color:#ffd166">肽段区域</span></span>
+        <span>■ <span style="color:var(--accent)">目标AA(肽段内)</span></span>
+        <span>■ <span style="color:var(--accent2)">目标AA(肽段外)</span></span>
+      </div>
+    </div>
+    <div class="sequence-display" id="seqDisplay"></div>
+  </div>
+
+  <!-- Hit table -->
+  <div class="result-card" id="tableCard">
+    <div class="result-header">
+      <div class="result-title">目标氨基酸位置列表</div>
+      <span class="tag" id="tableTag"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="hitTable">
+        <thead>
+          <tr>
+            <th>位置(蛋白全长)</th>
+            <th>位置(肽段内)</th>
+            <th>是否在肽段中</th>
+            <th>肽段起始</th>
+            <th>肽段终止</th>
+            <th>上下文 ±3</th>
+          </tr>
+        </thead>
+        <tbody id="hitTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Peptide info from TSV -->
+  <div class="result-card" id="tsvCard">
+    <div class="result-header">
+      <div class="result-title">TSV 文件中的肽段信息</div>
+      <span class="tag" id="tsvTag"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Peptide</th>
+            <th>Protein</th>
+            <th>Protein Start</th>
+            <th>Protein End</th>
+            <th>Assigned Modifications</th>
+            <th>Intensity</th>
+          </tr>
+        </thead>
+        <tbody id="tsvTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Data stores ───────────────────────────────────────────────────────────
+let fastaData = {}; // Entry Name -> sequence
+let tsvData = [];
+
+// ─── Log helper ────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const el = document.getElementById('logArea');
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.textContent = '› ' + msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('logArea').innerHTML = '';
+}
+
+// ─── FASTA parser ──────────────────────────────────────────────────────────
+function parseFasta(text) {
+  const result = {};
+  const lines = text.split('\n');
+  let currentKey = null, seq = [];
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l) continue;
+    if (l.startsWith('>')) {
+      if (currentKey) result[currentKey] = seq.join('');
+      // Extract entry name like KCRB_HUMAN from >sp|P12345|KCRB_HUMAN ...
+      const parts = l.substring(1).split(/\s+/)[0].split('|');
+      currentKey = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
+      // Also store full header as key
+      result['__header__' + currentKey] = l.substring(1);
+      seq = [];
+    } else {
+      seq.push(l.replace(/\s/g, ''));
+    }
+  }
+  if (currentKey) result[currentKey] = seq.join('');
+  return result;
+}
+
+// ─── TSV parser ─────────────────────────────────────────────────────────────
+function parseTsv(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  if (!lines.length) return [];
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split('\t');
+    const row = {};
+    headers.forEach((h, j) => row[h] = (cols[j] || '').trim());
+    if (row['Peptide']) rows.push(row);
+  }
+  return rows;
+}
+
+// ─── File loading ───────────────────────────────────────────────────────────
+document.getElementById('fastaFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('fastaName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    fastaData = parseFasta(ev.target.result);
+    const count = Object.keys(fastaData).filter(k => !k.startsWith('__header__')).length;
+    document.getElementById('fastaDot').className = 'status-dot loaded';
+    document.getElementById('fastaStatus').className = 'status-item loaded';
+    document.getElementById('fastaStatus').innerHTML = `<div class="status-dot loaded"></div>FASTA: ${count} 条蛋白`;
+    log(`FASTA 加载完成，共 ${count} 条蛋白序列`, 'ok');
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('tsvFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('tsvName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    tsvData = parseTsv(ev.target.result);
+    document.getElementById('tsvDot').className = 'status-dot loaded';
+    document.getElementById('tsvStatus').className = 'status-item loaded';
+    document.getElementById('tsvStatus').innerHTML = `<div class="status-dot loaded"></div>TSV: ${tsvData.length} 条肽段`;
+    log(`TSV 加载完成，共 ${tsvData.length} 条肽段记录`, 'ok');
+  };
+  reader.readAsText(file);
+});
+
+// Drag and drop
+['fastaZone', 'tsvZone'].forEach(id => {
+  const zone = document.getElementById(id);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const input = zone.querySelector('input[type=file]');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+  });
+});
+
+// Auto uppercase input
+document.getElementById('peptideInput').addEventListener('input', function() {
+  this.value = this.value.toUpperCase();
+});
+document.getElementById('aaInput').addEventListener('input', function() {
+  this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+});
+
+// ─── Main query ─────────────────────────────────────────────────────────────
+function runQuery() {
+  clearLog();
+  hideAll();
+
+  const peptide = document.getElementById('peptideInput').value.trim().toUpperCase();
+  const targetAA = document.getElementById('aaInput').value.trim().toUpperCase();
+
+  if (!peptide) { log('请输入肽段序列', 'err'); return; }
+  if (!targetAA) { log('请输入目标氨基酸', 'err'); return; }
+
+  log(`查询肽段: ${peptide}`);
+  log(`目标氨基酸: ${targetAA}`);
+
+  // ── 1. Find protein from TSV ──────────────────────────────────────────────
+  const tsvHits = tsvData.filter(r => r['Peptide'] === peptide);
+  let proteinEntryName = null;
+  let proteinSeq = null;
+  let peptideStart = null; // 1-based
+
+  if (tsvHits.length > 0) {
+    log(`TSV 中找到 ${tsvHits.length} 条匹配记录`, 'ok');
+    // Try to get entry name from TSV
+    const firstHit = tsvHits[0];
+    const entryName = firstHit['Entry Name'] || '';
+    if (entryName && fastaData[entryName]) {
+      proteinEntryName = entryName;
+      proteinSeq = fastaData[entryName];
+      peptideStart = parseInt(firstHit['Protein Start']) || null;
+      log(`从 TSV 确定蛋白: ${entryName}`, 'ok');
+    }
+  } else {
+    log('TSV 中未找到精确匹配，将在 FASTA 中搜索包含此肽段的蛋白', 'warn');
+  }
+
+  // ── 2. If not from TSV, search in FASTA ──────────────────────────────────
+  if (!proteinSeq) {
+    const keys = Object.keys(fastaData).filter(k => !k.startsWith('__header__'));
+    for (const k of keys) {
+      const seq = fastaData[k];
+      if (seq.includes(peptide)) {
+        proteinEntryName = k;
+        proteinSeq = seq;
+        log(`FASTA 中找到包含此肽段的蛋白: ${k}`, 'ok');
+        break;
+      }
+    }
+  }
+
+  if (!proteinSeq) {
+    if (Object.keys(fastaData).length === 0) {
+      log('未加载 FASTA 文件，无法获取蛋白序列', 'err');
+    } else {
+      log('FASTA 中未找到包含此肽段序列的蛋白', 'err');
+    }
+  }
+
+  // ── 3. Compute peptide position in protein ────────────────────────────────
+  let pepStartInProtein = null; // 0-based index
+  if (proteinSeq) {
+    const idx = proteinSeq.indexOf(peptide);
+    if (idx !== -1) {
+      pepStartInProtein = idx;
+      if (!peptideStart) peptideStart = idx + 1;
+      log(`肽段在蛋白中起始位置: ${idx + 1} (1-based)`, 'ok');
+    } else {
+      log('肽段序列在蛋白中未找到精确匹配（可能存在修饰）', 'warn');
+      // Use TSV start if available
+      if (peptideStart) {
+        pepStartInProtein = peptideStart - 1;
+        log(`使用 TSV 提供的起始位置: ${peptideStart}`, 'warn');
+      }
+    }
+  }
+
+  // ── 4. Find target AA positions ──────────────────────────────────────────
+  const pepAAPositions = []; // positions of targetAA in peptide (0-based)
+  for (let i = 0; i < peptide.length; i++) {
+    if (peptide[i] === targetAA) pepAAPositions.push(i);
+  }
+  log(`目标AA "${targetAA}" 在肽段中出现 ${pepAAPositions.length} 次，位置(肽段内1-based): [${pepAAPositions.map(p => p+1).join(', ')}]`);
+
+  const protAAPositions = []; // positions in full protein (0-based)
+  if (proteinSeq) {
+    for (let i = 0; i < proteinSeq.length; i++) {
+      if (proteinSeq[i] === targetAA) protAAPositions.push(i);
+    }
+  }
+
+  // ── 5. Render stats ───────────────────────────────────────────────────────
+  const statsCard = document.getElementById('statsCard');
+  statsCard.classList.add('visible');
+  document.getElementById('overviewTag').textContent = proteinEntryName || '蛋白未识别';
+
+  const pepEndInProtein = pepStartInProtein !== null ? pepStartInProtein + peptide.length - 1 : null;
+
+  const statsHtml = [
+    { label: '肽段长度', val: peptide.length, cls: '' },
+    { label: '肽段起始(全蛋白)', val: pepStartInProtein !== null ? pepStartInProtein + 1 : 'N/A', cls: 'green' },
+    { label: '肽段终止(全蛋白)', val: pepEndInProtein !== null ? pepEndInProtein + 1 : 'N/A', cls: 'green' },
+    { label: `"${targetAA}" 在肽段中`, val: pepAAPositions.length + ' 个', cls: pepAAPositions.length > 0 ? '' : 'red' },
+    { label: `"${targetAA}" 在全蛋白中`, val: protAAPositions.length + ' 个', cls: '' },
+    { label: '蛋白全长', val: proteinSeq ? proteinSeq.length + ' aa' : 'N/A', cls: '' },
+  ].map(s => `<div class="stat-box"><div class="stat-label">${s.label}</div><div class="stat-value ${s.cls}">${s.val}</div></div>`).join('');
+  document.getElementById('statsRow').innerHTML = statsHtml;
+
+  // ── 6. Render hit table ───────────────────────────────────────────────────
+  document.getElementById('tableCard').classList.add('visible');
+  const inPepSet = new Set(pepAAPositions.map(p => pepStartInProtein !== null ? pepStartInProtein + p : null).filter(x => x !== null));
+
+  // All positions of targetAA in protein, mark if in peptide
+  const tableRows = [];
+  // From protein
+  if (proteinSeq) {
+    for (let i = 0; i < proteinSeq.length; i++) {
+      if (proteinSeq[i] !== targetAA) continue;
+      const inPep = inPepSet.has(i);
+      const pepPos = pepStartInProtein !== null && i >= pepStartInProtein && i <= pepEndInProtein ? (i - pepStartInProtein + 1) : '-';
+      const ctx = proteinSeq.substring(Math.max(0, i-3), i) + '[' + targetAA + ']' + proteinSeq.substring(i+1, i+4);
+      tableRows.push({
+        protPos: i + 1,
+        pepPos,
+        inPep,
+        pepStart: pepStartInProtein !== null ? pepStartInProtein + 1 : 'N/A',
+        pepEnd: pepEndInProtein !== null ? pepEndInProtein + 1 : 'N/A',
+        ctx
+      });
+    }
+  } else if (pepAAPositions.length > 0) {
+    // No protein, just peptide positions
+    pepAAPositions.forEach(p => {
+      tableRows.push({
+        protPos: pepStartInProtein !== null ? pepStartInProtein + p + 1 : '?',
+        pepPos: p + 1,
+        inPep: true,
+        pepStart: pepStartInProtein !== null ? pepStartInProtein + 1 : 'N/A',
+        pepEnd: 'N/A',
+        ctx: peptide.substring(Math.max(0, p-3), p) + '[' + targetAA + ']' + peptide.substring(p+1, p+4)
+      });
+    });
+  }
+
+  document.getElementById('tableTag').textContent = `共 ${tableRows.length} 个 ${targetAA}`;
+  const tbody = document.getElementById('hitTableBody');
+  tbody.innerHTML = tableRows.map(r => `
+    <tr class="${r.inPep ? 'match-row' : ''}">
+      <td>${r.protPos}</td>
+      <td>${r.pepPos}</td>
+      <td>${r.inPep ? '✅ 是' : '—'}</td>
+      <td>${r.pepStart}</td>
+      <td>${r.pepEnd}</td>
+      <td style="font-family:monospace;letter-spacing:0.05em">${r.ctx}</td>
+    </tr>`).join('');
+
+  // ── 7. Sequence visualization ─────────────────────────────────────────────
+  if (proteinSeq) {
+    document.getElementById('seqCard').classList.add('visible');
+    let html = '';
+    for (let i = 0; i < proteinSeq.length; i++) {
+      const aa = proteinSeq[i];
+      const inPep = pepStartInProtein !== null && i >= pepStartInProtein && i <= pepEndInProtein;
+      const isTarget = aa === targetAA;
+      if (inPep && isTarget) {
+        html += `<span class="aa-peptide-target" title="蛋白位置: ${i+1} | 肽段位置: ${i-pepStartInProtein+1}">${aa}</span>`;
+      } else if (inPep) {
+        html += `<span class="aa-peptide" title="蛋白位置: ${i+1} | 肽段位置: ${i-pepStartInProtein+1}">${aa}</span>`;
+      } else if (isTarget) {
+        html += `<span class="aa-target" title="蛋白位置: ${i+1}">${aa}</span>`;
+      } else {
+        html += `<span class="aa-normal">${aa}</span>`;
+      }
+      if ((i+1) % 10 === 0) html += '<span style="color:var(--border);font-size:0.6rem;margin:0 3px"></span>';
+      if ((i+1) % 60 === 0) html += '<br>';
+    }
+    document.getElementById('seqDisplay').innerHTML = html;
+  }
+
+  // ── 8. TSV info ───────────────────────────────────────────────────────────
+  if (tsvHits.length > 0) {
+    document.getElementById('tsvCard').classList.add('visible');
+    document.getElementById('tsvTag').textContent = `${tsvHits.length} 条记录`;
+    document.getElementById('tsvTableBody').innerHTML = tsvHits.slice(0, 20).map(r => `
+      <tr>
+        <td style="font-family:monospace;word-break:break-all;max-width:280px">${r['Peptide'] || ''}</td>
+        <td>${r['Entry Name'] || r['Protein'] || ''}</td>
+        <td>${r['Protein Start'] || ''}</td>
+        <td>${r['Protein End'] || ''}</td>
+        <td style="font-size:0.68rem;color:var(--muted)">${r['Assigned Modifications'] || '-'}</td>
+        <td>${r['Intensity'] || '0'}</td>
+      </tr>`).join('');
+  }
+
+  log('查询完成', 'ok');
+}
+
+function hideAll() {
+  ['statsCard','seqCard','tableCard','tsvCard'].forEach(id => {
+    document.getElementById(id).classList.remove('visible');
+  });
+}
+
+// ── Demo: allow Enter key ─────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.target.id === 'peptideInput' || e.target.id === 'aaInput')) {
+    runQuery();
+  }
+});
+</script>
+</body>
+</html>
